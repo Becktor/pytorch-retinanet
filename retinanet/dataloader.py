@@ -155,6 +155,13 @@ class CSVDataset(Dataset):
         except ValueError as e:
             raise_from(ValueError('invalid CSV annotations file: {}: {}'.format(self.train_file, e)), None)
         self.image_names = list(self.image_data.keys())
+        cnt = len(self.image_names)
+        for l in range(cnt):
+            img_path = r"/home/jbibe/sftp/" + self.image_names[l][7:]
+            img_data = self.image_data[self.image_names[l]]
+            del self.image_data[self.image_names[l]]
+            self.image_names[l] = img_path
+            self.image_data[img_path] = img_data
 
     def _parse(self, value, function, fmt):
         """

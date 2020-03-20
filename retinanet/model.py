@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch
 import math
 import torch.utils.model_zoo as model_zoo
+from torch.nn import Conv2d
 from torchvision.ops import nms
 from retinanet.utils import BasicBlock, Bottleneck, BBoxTransform, ClipBoxes
 from retinanet.anchors import Anchors
@@ -105,6 +106,7 @@ class RegressionModel(nn.Module):
 
 
 class ClassificationModel(nn.Module):
+
     def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):
         super(ClassificationModel, self).__init__()
 

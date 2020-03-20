@@ -79,6 +79,7 @@ class Bottleneck(nn.Module):
 
         return out
 
+
 class BBoxTransform(nn.Module):
 
     def __init__(self, mean=None, std=None):

@@ -11,6 +11,7 @@ from retinanet import model
 from retinanet.dataloader import CocoDataset, CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, \
     Normalizer
 from torch.utils.data import DataLoader
+#from torch.utils.tensorboard import SummaryWriter
 
 from retinanet import coco_eval
 from retinanet import csv_eval
@@ -91,7 +92,7 @@ def main(args=None):
 
     if use_gpu:
         retinanet = retinanet.cuda()
-
+#    writer = SummaryWriter('runs/experiment')
     retinanet = torch.nn.DataParallel(retinanet).cuda()
 
     retinanet.training = True
@@ -137,10 +138,10 @@ def main(args=None):
                 loss_hist.append(float(loss))
 
                 epoch_loss.append(float(loss))
-
-                print(
-                    'Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
-                        epoch_num, iter_num, float(classification_loss), float(regression_loss), np.mean(loss_hist)))
+                if iter_num % 100 == 0:
+                    print(
+                        'Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
+                            epoch_num, iter_num, float(classification_loss), float(regression_loss), np.mean(loss_hist)))
 
                 del classification_loss
                 del regression_loss
