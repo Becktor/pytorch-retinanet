@@ -157,7 +157,7 @@ class CSVDataset(Dataset):
         self.image_names = list(self.image_data.keys())
         cnt = len(self.image_names)
         for l in range(cnt):
-            img_path = r"/home/jbibe/sftp/" + self.image_names[l][7:]
+            img_path = r"/home/jbibe/sftp/transfer/" + self.image_names[l][7:]
             img_data = self.image_data[self.image_names[l]]
             del self.image_data[self.image_names[l]]
             self.image_names[l] = img_path
@@ -314,7 +314,6 @@ def collater(data):
     scales = [s['scale'] for s in data]
         
     widths = [int(s.shape[0]) for s in imgs]
-    heights = [int(s.shape[1]) for s in imgs]
     batch_size = len(imgs)
 
     max_width = np.array(widths).max()
