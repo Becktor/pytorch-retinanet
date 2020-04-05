@@ -158,7 +158,8 @@ class CSVDataset(Dataset):
         self.image_names = list(self.image_data.keys())
         cnt = len(self.image_names)
         for l in range(cnt):
-            img_path = r"/home/jbibe/sftp/transfer/" + self.image_names[l][7:]
+            pp = os.path.dirname(train_file)
+            img_path = pp + self.image_names[l][17:]
             img_data = self.image_data[self.image_names[l]]
             del self.image_data[self.image_names[l]]
             self.image_names[l] = img_path
@@ -212,11 +213,10 @@ class CSVDataset(Dataset):
     def __getitem__(self, idx):
 
         img = self.load_image(idx)
-        annot = self.load_annotations(idx)
+        annot = self.load_annotations(idx, img.shape)
         sample = {'img': img, 'annot': annot}
         if self.transform:
             sample = self.transform(sample)
-
         return sample
 
     def load_image(self, image_index):
@@ -227,7 +227,7 @@ class CSVDataset(Dataset):
 
         return img.astype(np.float32)/255.0
 
-    def load_annotations(self, image_index):
+    def load_annotations(self, image_index, image_shape):
         # get ground truth annotations
         annotation_list = self.image_data[self.image_names[image_index]]
         annotations     = np.zeros((0, 5))
@@ -239,10 +239,10 @@ class CSVDataset(Dataset):
         # parse annotations
         for idx, a in enumerate(annotation_list):
             # some annotations have basically no width / height, skip them
-            x1 = a['x1']
-            x2 = a['x2']
-            y1 = a['y1']
-            y2 = a['y2']
+            x1 = int(image_shape[1] * a['x1'])
+            x2 = int(image_shape[1] * a['x2'])
+            y1 = int(image_shape[0] * a['y1'])
+            y2 = int(image_shape[0] * a['y2'])
 
             if (x2-x1) < 1 or (y2-y1) < 1:
                 continue
@@ -276,10 +276,10 @@ class CSVDataset(Dataset):
             if (x1, y1, x2, y2, class_name) == ('', '', '', '', ''):
                 continue
 
-            x1 = self._parse(x1, int, 'line {}: malformed x1: {{}}'.format(line))
-            y1 = self._parse(y1, int, 'line {}: malformed y1: {{}}'.format(line))
-            x2 = self._parse(x2, int, 'line {}: malformed x2: {{}}'.format(line))
-            y2 = self._parse(y2, int, 'line {}: malformed y2: {{}}'.format(line))
+            x1 = self._parse(x1, float, 'line {}: malformed x1: {{}}'.format(line))
+            y1 = self._parse(y1, float, 'line {}: malformed y1: {{}}'.format(line))
+            x2 = self._parse(x2, float, 'line {}: malformed x2: {{}}'.format(line))
+            y2 = self._parse(y2, float, 'line {}: malformed y2: {{}}'.format(line))
 
             # Check that the bounding box is valid.
             if x2 <= x1:
@@ -315,6 +315,8 @@ def collater(data):
     scales = [s['scale'] for s in data]
         
     widths = [int(s.shape[0]) for s in imgs]
+    heights = [int(s.shape[1]) for s in imgs]
+
     batch_size = len(imgs)
 
     max_width = np.array(widths).max()
@@ -348,7 +350,8 @@ def collater(data):
 class Resizer(object):
     """Convert ndarrays in sample to Tensors."""
 
-    def __call__(self, sample, min_side=608, max_side=1024):
+    def __call__(self, sample, min_side=1080, max_side=1440):
+
         image, annots = sample['img'], sample['annot']
 
         rows, cols, cns = image.shape

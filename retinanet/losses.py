@@ -36,7 +36,6 @@ class FocalLoss(nn.Module):
         regression_losses = []
 
         anchor = anchors[0, :, :]
-
         anchor_widths = anchor[:, 2] - anchor[:, 0]
         anchor_heights = anchor[:, 3] - anchor[:, 1]
         anchor_ctr_x = anchor[:, 0] + 0.5 * anchor_widths
@@ -53,15 +52,11 @@ class FocalLoss(nn.Module):
             if bbox_annotation.shape[0] == 0:
                 regression_losses.append(torch.tensor(0).float().cuda())
                 classification_losses.append(torch.tensor(0).float().cuda())
-
                 continue
 
             classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
-
             IoU = calc_iou(anchors[0, :, :], bbox_annotation[:, :4])  # num_anchors x num_annotations
-
             IoU_max, IoU_argmax = torch.max(IoU, dim=1)  # num_anchors x 1
-
             # import pdb
             # pdb.set_trace()
 
@@ -72,7 +67,6 @@ class FocalLoss(nn.Module):
             targets[torch.lt(IoU_max, 0.4), :] = 0
 
             positive_indices = torch.ge(IoU_max, 0.5)
-
             num_positive_anchors = positive_indices.sum()
 
             assigned_annotations = bbox_annotation[IoU_argmax, :]
