@@ -4,6 +4,8 @@ import collections
 import numpy as np
 
 import torch
+import ctypes
+ctypes.cdll.LoadLibrary('caffe2_nvrtc.dll')
 import torch.optim as optim
 from torchvision import transforms
 
@@ -52,7 +54,7 @@ def main(args=None):
     if parser.depth == 18:
         retinanet = model.resnet18(num_classes=dataset_train.num_classes(), pretrained=True)
     elif parser.depth == 34:
-        retinanet = model.resnet34(num_classes=dataset_train.num_classes(), pretrained=True)
+        retinanet = model.resnet34(nm_classes=dataset_train.num_classes(), pretrained=True)
     elif parser.depth == 50:
         retinanet = model.resnet50(num_classes=dataset_train.num_classes(), pretrained=True)
     elif parser.depth == 101:
@@ -63,7 +65,6 @@ def main(args=None):
         raise ValueError('Unsupported model depth, must be one of 18, 34, 50, 101, 152')
 
     use_gpu = True
-
     if use_gpu:
         retinanet = retinanet.cuda()
     retinanet = torch.nn.DataParallel(retinanet).cuda()
@@ -90,14 +91,10 @@ def main(args=None):
         for iter_num, data in enumerate(dataloader_train):
             try:
                 optimizer.zero_grad()
-
                 classification_loss, regression_loss = retinanet([data['img'].cuda().float(), data['annot']])
-
                 classification_loss = classification_loss.mean()
                 regression_loss = regression_loss.mean()
-
                 loss = classification_loss + regression_loss
-
                 if bool(loss == 0):
                     continue
 
@@ -122,16 +119,8 @@ def main(args=None):
                 print(e)
                 continue
 
-        if parser.dataset == 'coco':
-
+        if parser.csv_val is not None:
             print('Evaluating dataset')
-
-            coco_eval.evaluate_coco(dataset_val, retinanet)
-
-        elif parser.dataset == 'csv' and parser.csv_val is not None:
-
-            print('Evaluating dataset')
-
             mAP = csv_eval.evaluate(dataset_val, retinanet)
 
         scheduler.step(np.mean(epoch_loss))

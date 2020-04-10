@@ -15,7 +15,6 @@ class BaseConv2D(_ConvNd):
         super(BaseConv2D, self).__init__(
             in_channels, out_channels, kernel_size, stride, padding, dilation,
             False, _pair(0), groups, bias, "zeros")
-
         self.original_shape = self.weight.shape
         self.out_channels = out_channels
 

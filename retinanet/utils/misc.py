@@ -11,7 +11,6 @@ def initialize_best_val(criterion):
 
 
 def to_cuda(pytorch_object, cuda=False):
-    print("to_cuda")
     if cuda:
         return pytorch_object.cuda()
     else:
