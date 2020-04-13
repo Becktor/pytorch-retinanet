@@ -9,8 +9,7 @@ class GroupSort(nn.Module):
         self.num_units = num_units
         self.axis = axis
 
-    def forward(self, x, step):
-        #print(step)
+    def forward(self, x):
         group_sorted = group_sort(x, self.num_units, self.axis)
         assert check_group_sorted(group_sorted, self.num_units, axis=self.axis) == 1, "GroupSort failed. "
 
@@ -23,7 +22,6 @@ class GroupSort(nn.Module):
 def process_group_size(x, num_units, axis=-1):
     size = list(x.size())
     num_channels = size[axis]
-    #print(num_channels)
     if num_channels % num_units:
         raise ValueError('number of features({}) is not a '
                          'multiple of num_units({})'.format(num_channels, num_units))
@@ -53,7 +51,7 @@ def check_group_sorted(x, num_units, axis=-1):
     x_np_diff = np.diff(x_np, axis=axis)
 
     # Return 1 iff all elements are increasing.
-    if np.sum(x_np_diff < 0) > 0:
+    if np.sum(x_np_diff < 0) < 0:
         return 0
     else:
         return 1

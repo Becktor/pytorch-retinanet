@@ -4,8 +4,11 @@ import collections
 import numpy as np
 
 import torch
-import ctypes
-ctypes.cdll.LoadLibrary('caffe2_nvrtc.dll')
+import os
+if os.name == 'nt':
+    import ctypes
+    ctypes.cdll.LoadLibrary('caffe2_nvrtc.dll')
+
 import torch.optim as optim
 from torchvision import transforms
 
@@ -125,7 +128,7 @@ def main(args=None):
 
         scheduler.step(np.mean(epoch_loss))
 
-        torch.save(retinanet.module, '{}_retinanet_{}.pt'.format(parser.dataset, epoch_num))
+        torch.save(retinanet.module, 'retinanet_{}.pt'.format(epoch_num))
 
     retinanet.eval()
 

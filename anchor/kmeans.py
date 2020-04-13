@@ -14,7 +14,7 @@ nh = 1080
 nw = 1440
 
 parser = argparse.ArgumentParser(description='Annotation kmeans')
-parser.add_argument("-a","--annotations", help="file path to annotations", type=str, default = r'/mnt/Z/ShippingLab/mmdet/2019_04_12.csv' )
+parser.add_argument("-a","--annotations", help="file path to annotations", type=str, default = r'Z:/ShippingLab/mmdet/rgb_train.csv' )
 parser.add_argument("--sizes", help="calculate sizes", action='store_true')
 args = parser.parse_args()
 
@@ -37,7 +37,7 @@ for i, row in df_csv[df_csv['Unnamed: 1'].notnull()].iterrows():
 			bar.numerator = i
 			print(bar, end='\r')
 		if row[0] != old_img:
-			pp = (r'/mnt/Z/ShippingLab/mmdet/' + row[0][18:])
+			pp = (r'Z:/ShippingLab/mmdet/' + row[0][18:])
 			im = mpimg.imread(pp)
 			iw = im.shape[0]
 			ih = im.shape[1]
@@ -46,7 +46,7 @@ for i, row in df_csv[df_csv['Unnamed: 1'].notnull()].iterrows():
 		w = np.abs(row[1] - row[3]) * nw/iw
 		h = np.abs(row[2] - row[4]) * nh/ih
 		size = np.sqrt(float(w * iw * h * ih))
-		sizes.append(size)
+		sizes = np.append(sizes, size)
 		sizes[cnt] = size
 	w = np.abs(row[1] - row[3])
 	h = np.abs(row[2] - row[4])
