@@ -73,20 +73,20 @@ class RegressionModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, feature_size=256):
         super(RegressionModel, self).__init__()
 
-        self.conv1 = BjorckConv2d(num_features_in, feature_size, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
         self.gs1 = GroupSort(2, axis=1)
 
-        self.conv2 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
         self.gs2 = GroupSort(2, axis=1)
 
-        self.conv3 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
         self.gs3 = GroupSort(2, axis=1)
 
-        self.conv4 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
 
         self.gs4 = GroupSort(2, axis=1)
 
-        self.output = BjorckConv2d(feature_size, num_anchors * 4, kernel_size=3, padding=1)
+        self.output = nn.Conv2d(feature_size, num_anchors * 4, kernel_size=3, padding=1)
 
     def forward(self, x):
 
@@ -114,19 +114,19 @@ class ClassificationModel(nn.Module):
         self.num_classes = num_classes
         self.num_anchors = num_anchors
 
-        self.conv1 = BjorckConv2d(num_features_in, feature_size, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
         self.gs1 = GroupSort(2, axis=1)
 
-        self.conv2 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
         self.gs2 = GroupSort(2, axis=1)
 
-        self.conv3 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
         self.gs3 = GroupSort(2, axis=1)
 
-        self.conv4 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
         self.gs4 = GroupSort(2, axis=1)
 
-        self.output = BjorckConv2d(feature_size, num_anchors * num_classes, kernel_size=3, padding=1)
+        self.output = nn.Conv2d(feature_size, num_anchors * num_classes, kernel_size=3, padding=1)
         self.gs5 = GroupSort(2, axis=1)
         self.output_act = nn.Sigmoid()
 
