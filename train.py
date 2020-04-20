@@ -40,7 +40,7 @@ def save_ckp(state, is_best, checkpoint_dir, epoch):
 def load_ckp(checkpoint_filepath, model, optimizer):
     cwd = os.path.join(os.getcwd(), checkpoint_filepath)
     checkpoint = os.listdir(checkpoint_filepath)
-    path = os.path.join(cwd, checkpoint[0])
+    path = os.path.join(cwd, checkpoint[-1])
     checkpoint = torch.load(path)
     model.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer'])
@@ -98,8 +98,11 @@ def main(args=None):
     retinanet = torch.nn.DataParallel(retinanet).cuda()
     optimizer = optim.Adam(retinanet.parameters(), lr=1e-5)
 
+    checkpoint_dir = 'retinanet' + dt.datetime.now().strftime("%j_%H%M")
+
     if parser.continue_training is not None:
         retinanet, optimizer, prev_epoch = load_ckp(parser.continue_training, retinanet, optimizer)
+        checkpoint_dir = parser.continue_training
 
     retinanet.training = True
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
@@ -108,7 +111,6 @@ def main(args=None):
     retinanet.train()
     retinanet.module.freeze_bn()
 
-    checkpoint_dir = 'retinanet' + dt.datetime.now().strftime("%j_%H%M")
     print('Num training images: {}'.format(len(dataset_train)))
     for epoch_num in range(parser.epochs):
         curr_epoch = prev_epoch + epoch_num
