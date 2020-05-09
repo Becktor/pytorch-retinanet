@@ -14,9 +14,9 @@ class Anchors(nn.Module):
         if sizes is None:
             self.sizes = [2 ** (x + 2) for x in self.pyramid_levels]
         if ratios is None:
-            self.ratios = np.array([1, 1.5, 2, 3, 4],)
+            self.ratios = np.array([0.76, 1.13, 1.58, 2.18, 3.2],)
         if scales is None:
-            self.scales = np.array([0.5, 1, 2.5])
+            self.scales = np.array([1, 1.75, 2.5])
 
     def forward(self, image):
 
@@ -34,7 +34,7 @@ class Anchors(nn.Module):
         return torch.from_numpy(all_anchors.astype(np.float32)).cuda()
 
 
-def generate_anchors(base_size=16, ratios=None, scales=None):
+def generate_anchors(base_size=8, ratios=None, scales=None):
     """
     Generate anchor (reference) windows by enumerating aspect ratios X
     scales w.r.t. a reference window.

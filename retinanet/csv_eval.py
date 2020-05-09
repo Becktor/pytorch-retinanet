@@ -151,7 +151,7 @@ def evaluate(
         generator,
         retinanet,
         iou_threshold=0.5,
-        score_threshold=0.05,
+        score_threshold=0.7,
         max_detections=100,
         save_path=None
 ):
@@ -172,9 +172,9 @@ def evaluate(
     all_detections = _get_detections(generator, retinanet, score_threshold=score_threshold,
                                      max_detections=max_detections, save_path=save_path)
     all_annotations = _get_annotations(generator)
-
+    return_list = []
     average_precisions = {}
-
+    print('\nRecall and Precision')
     for label in range(generator.num_classes()):
         false_positives = np.zeros((0,))
         true_positives = np.zeros((0,))
@@ -224,8 +224,12 @@ def evaluate(
         # compute recall and precision
         recall = true_positives / num_annotations
         precision = true_positives / np.maximum(true_positives + false_positives, np.finfo(np.float64).eps)
+        label_name = generator.label_to_name(label)
+        print(label_name)
         print("Recall: {}".format(np.mean(recall)))
         print("Precision: {}".format(np.mean(precision)))
+        return_list.append((label_name, np.mean(recall), np.mean(precision)))
+
         # compute average precision
         average_precision = _compute_ap(recall, precision)
         average_precisions[label] = average_precision, num_annotations
@@ -234,6 +238,6 @@ def evaluate(
     for label in range(generator.num_classes()):
         label_name = generator.label_to_name(label)
         print('{}: {}'.format(label_name, average_precisions[label][0]))
+        return_list.append((label_name, average_precisions[label][0]))
 
-
-    return average_precisions
+    return average_precisions, return_list

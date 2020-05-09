@@ -4,7 +4,7 @@ import math
 import torch.utils.model_zoo as model_zoo
 from torch.nn import Conv2d
 from torchvision.ops import nms
-from retinanet.utils import BasicBlock, Bottleneck, BBoxTransform, ClipBoxes
+from retinanet.utils import BasicBlock, GroupBlock, Bottleneck, Bottleneck_groupsort, BBoxTransform, ClipBoxes
 from retinanet.models.bjork_conv2d import BjorckConv2d
 from retinanet.activations import *
 from retinanet.anchors import Anchors
@@ -42,7 +42,7 @@ class PyramidFeatures(nn.Module):
         self.P6 = nn.Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
 
         # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
-        self.P7_1 = nn.ReLU()
+        self.P7_1 = nn.ReLU()  # GroupSort(2,axis=1)
         self.P7_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
 
     def forward(self, inputs):
@@ -70,34 +70,33 @@ class PyramidFeatures(nn.Module):
 
 
 class RegressionModel(nn.Module):
-    def __init__(self, num_features_in, num_anchors=9, feature_size=256):
+    def __init__(self, num_features_in, num_anchors=9, feature_size=256, act=nn.ReLU):
         super(RegressionModel, self).__init__()
 
-        self.conv1 = BjorckConv2d(num_features_in, feature_size, kernel_size=3, padding=1)
-        self.gs1 = GroupSort(2, axis=1)
+        self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
+        self.act1 = act
 
-        self.conv2 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.gs2 = GroupSort(2, axis=1)
+        self.conv2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act2 = act
 
-        self.conv3 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.gs3 = GroupSort(2, axis=1)
+        self.conv3 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act3 = act
 
-        self.conv4 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
 
-        self.gs4 = GroupSort(2, axis=1)
+        self.act4 = act
 
-        self.output = BjorckConv2d(feature_size, num_anchors * 4, kernel_size=3, padding=1)
+        self.output = nn.Conv2d(feature_size, num_anchors * 4, kernel_size=3, padding=1)
 
     def forward(self, x):
-
         out = self.conv1(x)
-        out = self.gs1(out)
+        out = self.act1(out)
         out = self.conv2(out)
-        out = self.gs2(out)
+        out = self.act2(out)
         out = self.conv3(out)
-        out = self.gs3(out)
+        out = self.act3(out)
         out = self.conv4(out)
-        out = self.gs4(out)
+        out = self.act4(out)
         out = self.output(out)
 
         # out is B x C x W x H, with C = 4*num_anchors
@@ -108,37 +107,36 @@ class RegressionModel(nn.Module):
 
 class ClassificationModel(nn.Module):
 
-    def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):
+    def __init__(self, num_features_in, num_anchors=9, num_classes=80, feature_size=256, act=nn.ReLU):
         super(ClassificationModel, self).__init__()
 
         self.num_classes = num_classes
         self.num_anchors = num_anchors
 
-        self.conv1 = BjorckConv2d(num_features_in, feature_size, kernel_size=3, padding=1)
-        self.gs1 = GroupSort(2, axis=1)
+        self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
+        self.act1 = act
 
-        self.conv2 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.gs2 = GroupSort(2, axis=1)
+        self.conv2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act2 = act
 
-        self.conv3 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.gs3 = GroupSort(2, axis=1)
+        self.conv3 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act3 = act
 
-        self.conv4 = BjorckConv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.gs4 = GroupSort(2, axis=1)
+        self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act4 = act
 
-        self.output = BjorckConv2d(feature_size, num_anchors * num_classes, kernel_size=3, padding=1)
-        self.gs5 = GroupSort(2, axis=1)
+        self.output = nn.Conv2d(feature_size, num_anchors * num_classes, kernel_size=3, padding=1)
         self.output_act = nn.Sigmoid()
 
     def forward(self, x):
         out = self.conv1(x)
-        out = self.gs1(out)
+        out = self.act1(out)
         out = self.conv2(out)
-        out = self.gs2(out)
+        out = self.act2(out)
         out = self.conv3(out)
-        out = self.gs3(out)
+        out = self.act3(out)
         out = self.conv4(out)
-        out = self.gs4(out)
+        out = self.act4(out)
         out = self.output(out)
         out = self.output_act(out)
 
@@ -154,7 +152,7 @@ class ClassificationModel(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, num_classes, block, layers):
+    def __init__(self, num_classes, block, layers, act=GroupSort(4, axis=1)):
         self.inplanes = 64
         super(ResNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
@@ -166,10 +164,10 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
 
-        if block == BasicBlock:
+        if block == BasicBlock or block == GroupBlock:
             fpn_sizes = [self.layer2[layers[1] - 1].conv2.out_channels, self.layer3[layers[2] - 1].conv2.out_channels,
                          self.layer4[layers[3] - 1].conv2.out_channels]
-        elif block == Bottleneck:
+        elif block == Bottleneck or block == Bottleneck_groupsort:
             fpn_sizes = [self.layer2[layers[1] - 1].conv3.out_channels, self.layer3[layers[2] - 1].conv3.out_channels,
                          self.layer4[layers[3] - 1].conv3.out_channels]
         else:
@@ -177,8 +175,8 @@ class ResNet(nn.Module):
 
         self.fpn = PyramidFeatures(fpn_sizes[0], fpn_sizes[1], fpn_sizes[2])
 
-        self.regressionModel = RegressionModel(256, num_anchors=15)
-        self.classificationModel = ClassificationModel(256, num_classes=num_classes, num_anchors=15)
+        self.regressionModel = RegressionModel(256, num_anchors=15, act=act)
+        self.classificationModel = ClassificationModel(256, num_classes=num_classes, num_anchors=15, act=act)
 
         self.anchors = Anchors()
 
@@ -261,7 +259,7 @@ class ResNet(nn.Module):
 
             scores = torch.max(classification, dim=2, keepdim=True)[0]
 
-            scores_over_thresh = (scores > 0.05)[0, :, 0]
+            scores_over_thresh = (scores > 0.05)[0, :, 0]  # certainty threshold
 
             if scores_over_thresh.sum() == 0:
                 # no boxes to NMS, just return
@@ -271,7 +269,7 @@ class ResNet(nn.Module):
             transformed_anchors = transformed_anchors[:, scores_over_thresh, :]
             scores = scores[:, scores_over_thresh, :]
 
-            anchors_nms_idx = nms(transformed_anchors[0, :, :], scores[0, :, 0], 0.5)
+            anchors_nms_idx = nms(transformed_anchors[0, :, :], scores[0, :, 0], 0.5)  # iou?
 
             nms_scores, nms_class = classification[0, anchors_nms_idx, :].max(dim=1)
 
@@ -306,6 +304,17 @@ def resnet50(num_classes, pretrained=False, **kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
     model = ResNet(num_classes, Bottleneck, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet50'], model_dir='.'), strict=False)
+    return model
+
+
+def groupnet50(num_classes, pretrained=False, **kwargs):
+    """Constructs a ResNet-50 model.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    model = ResNet(num_classes, Bottleneck_groupsort, [3, 4, 6, 3], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet50'], model_dir='.'), strict=False)
     return model

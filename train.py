@@ -13,38 +13,19 @@ if os.name == 'nt':
 
 import torch.optim as optim
 from torchvision import transforms
+from torch.utils.tensorboard import SummaryWriter
 
 from retinanet import model
 from retinanet.dataloader import CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, \
     Normalizer
 from torch.utils.data import DataLoader
-import shutil
-
 from retinanet import csv_eval
+from utils import *
 
 assert torch.__version__.split('.')[0] == '1'
 
-#print('CUDA available: {}'.format(torch.cuda.is_available()))
 
-
-def save_ckp(state, is_best, checkpoint_dir, epoch):
-    if not os.path.exists(checkpoint_dir):
-        os.makedirs(checkpoint_dir)
-    f_path = os.path.join(checkpoint_dir, 'checkpoint{}.pt'.format(epoch))
-    torch.save(state, f_path)
-    if is_best:
-        best_filepath = os.path.join(checkpoint_dir, 'best_model{}.pt'.format(epoch))
-        shutil.copyfile(f_path, best_filepath)
-
-
-def load_ckp(checkpoint_filepath, model, optimizer):
-    cwd = os.path.join(os.getcwd(), checkpoint_filepath)
-    checkpoint = os.listdir(checkpoint_filepath)
-    path = os.path.join(cwd, checkpoint[-1])
-    checkpoint = torch.load(path)
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
-    return model, optimizer, checkpoint['epoch']
+# print('CUDA available: {}'.format(torch.cuda.is_available()))
 
 
 def main(args=None):
@@ -54,7 +35,7 @@ def main(args=None):
     parser.add_argument('--csv_val', help='Path to file containing validation annotations (optional, see readme)')
     parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=50)
     parser.add_argument('--epochs', help='Number of epochs', type=int, default=100)
-    parser.add_argument('--batch_size', help='Batch size', type=int, default=1)
+    parser.add_argument('--batch_size', help='Batch size', type=int, default=2)
     parser.add_argument('--noise', help='Batch size', type=bool, default=False)
     parser.add_argument('--continue_training', help='Path to previous ckp', type=str, default=None)
 
@@ -74,7 +55,7 @@ def main(args=None):
     dataloader_train = DataLoader(dataset_train, num_workers=3, collate_fn=collater, batch_sampler=sampler)
 
     if dataset_val is not None:
-        sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=parser.batch_size, drop_last=False)
+        sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
         dataloader_val = DataLoader(dataset_val, num_workers=3, collate_fn=collater, batch_sampler=sampler_val)
 
     # Create the model
@@ -95,15 +76,21 @@ def main(args=None):
     if use_gpu:
         retinanet = retinanet.cuda()
     prev_epoch = 0
+    boat_mAP = 0
+    buoy_mAP = 0
     retinanet = torch.nn.DataParallel(retinanet).cuda()
     optimizer = optim.Adam(retinanet.parameters(), lr=1e-5)
 
-    checkpoint_dir = 'retinanet' + dt.datetime.now().strftime("%j_%H%M")
-
+    checkpoint_dir = 'models/retinanet' + dt.datetime.now().strftime("%j_%H%M")
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
     if parser.continue_training is not None:
-        retinanet, optimizer, prev_epoch = load_ckp(parser.continue_training, retinanet, optimizer)
+        retinanet, optimizer, checkpoint_dict = load_ckp(parser.continue_training, retinanet, optimizer)
         checkpoint_dir = parser.continue_training
-
+        prev_epoch = checkpoint_dict['epoch']
+        boat_mAP = checkpoint_dict['boat_mAP']
+        buoy_mAP = checkpoint_dict['buoy_mAP']
+    writer = SummaryWriter(checkpoint_dir + "/tb_event")
     retinanet.training = True
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
 
@@ -112,6 +99,7 @@ def main(args=None):
     retinanet.module.freeze_bn()
 
     print('Num training images: {}'.format(len(dataset_train)))
+
     for epoch_num in range(parser.epochs):
         curr_epoch = prev_epoch + epoch_num
         retinanet.train()
@@ -139,7 +127,8 @@ def main(args=None):
                 epoch_loss.append(float(loss))
                 if iter_num % 1 == 0:
                     print(
-                        'Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
+                        'Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | '
+                        'Running loss: {:1.5f}'.format(
                             curr_epoch, iter_num, float(classification_loss), float(regression_loss),
                             np.mean(loss_hist)), end='\r')
 
@@ -151,23 +140,41 @@ def main(args=None):
 
         if parser.csv_val is not None:
             print('Evaluating dataset')
-            mAP = csv_eval.evaluate(dataset_val, retinanet)
+            mAP, rl = csv_eval.evaluate(dataset_val, retinanet, 0.3, 0.7)
 
         scheduler.step(np.mean(epoch_loss))
+
+        writer.add_scalar("train/running_loss:", np.mean(loss_hist), epoch_num)
+        writer.add_scalar("val/Buoy_mAP:", rl[2][1], epoch_num)
+        writer.add_scalar("val/Boat_mAP:", rl[3][1], epoch_num)
+
+        writer.add_scalar("val/Buoy_Precision:", rl[0][2], epoch_num)
+        writer.add_scalar("val/Buoy_Recall:", rl[0][1], epoch_num)
+
+        writer.add_scalar("val/Boat_Precision:", rl[1][2], epoch_num)
+        writer.add_scalar("val/Boat_Recall:", rl[1][1], epoch_num)
 
         checkpoint = {
             'epoch': curr_epoch + 1,
             'state_dict': retinanet.state_dict(),
-            'optimizer': optimizer.state_dict()
+            'optimizer': optimizer.state_dict(),
+            'buoy_mAP': rl[2][1],
+            'boat_mAP': rl[3][1]
         }
 
-        if all(epoch_loss[-1] < i for i in epoch_loss[:-1]):
+        if rl[2][1] > boat_mAP and rl[3][1] > buoy_mAP:
+            boat_mAP = rl[3][1]
+            buoy_mAP = rl[2][1]
             save_ckp(checkpoint, True, checkpoint_dir, curr_epoch)
         else:
             save_ckp(checkpoint, False, checkpoint_dir, curr_epoch)
 
-    retinanet.eval()
+        loss_file = open(checkpoint_dir + r"\loss.csv", "a+")
+        loss_file.write("{}, {}, {}, {}, {}, {}, {}, {}\n".format(curr_epoch, np.mean(loss_hist),
+                                                                  rl[0], rl[1], rl[2], rl[3], buoy_mAP, boat_mAP))
+        loss_file.close()
 
+    retinanet.eval()
     torch.save(retinanet, 'model_final.pt')
 
 
